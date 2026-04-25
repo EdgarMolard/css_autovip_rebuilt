@@ -28,3 +28,6 @@ uploads/
 cache/
 temp/
 tmp/
+
+# Database setup (local development only)
+setup_database.sql
