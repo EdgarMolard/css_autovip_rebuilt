@@ -1,6 +1,6 @@
 <?php
 	if (CHECK_IN != 1) 
-		die("Vous n'êtes pas autorisé à afficher cette page");
+		die("Vous n'Ãªtes pas autorisÃ© Ã  afficher cette page");
 		
 		
 	echo '

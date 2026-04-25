@@ -1,5 +1,5 @@
 <?php
-
+global $conn;
 $conn = mysqli_connect(SQL_HOST, SQL_USER, SQL_PASSWORD, SQL_BDD);
 
 if(!$conn) die('Erreur de connexion : ' . mysqli_connect_errno());

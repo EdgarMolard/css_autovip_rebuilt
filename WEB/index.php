@@ -2,8 +2,8 @@
 	session_start();
 	
 	ini_set('display_errors', 0); 
-	if (strlen($_SESSION['af_ip_client']) > 6)
-		if ($_SESSION['af_ip_client'] != $_SERVER['REMOTE_ADDR'])
+	if (strlen($_SESSION['af_ip_client'] ?? '') > 6)
+		if (($_SESSION['af_ip_client'] ?? '') != $_SERVER['REMOTE_ADDR'])
 			session_destroy();
 	
 	error_reporting(E_ERROR);
@@ -79,10 +79,10 @@
 	}
 	else
 		if(strcmp($lang, "fr") == 0) { 
-			echo "<p class='user'><span>Bienvenue, visiteur</span> <a href='login.php?lang=$lang' class='tooltip' title='Identifiez vous'>Vous identifiez</a> - <a href='index.php?p=register&lang=$lang' class='tooltip' title='Inscrivez vous'>Vous enregistrer</a></p>";
+			echo "<p class='user'><span>Bienvenue, visiteur</span> <a href='steam_redirect.php?lang=$lang' class='tooltip' title='Identifiez vous'>Se connecter</a></p>";
 		}
 		else {
-			echo "<p class='user'><span>Welcome, guest</span> <a href='login.php?lang=$lang' class='tooltip' title='Log In'>Log In</a> - <a href='index.php?p=register&lang=$lang' class='tooltip' title='Sign Up'>Sign Up</a></p>";
+			echo "<p class='user'><span>Welcome, guest</span> <a href='steam_redirect.php?lang=$lang' class='tooltip' title='Log In'>Log In</a></p>";
 		}
 	?>
 </div>

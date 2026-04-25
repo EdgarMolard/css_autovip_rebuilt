@@ -116,18 +116,15 @@
     			<div class="menu-content">
     				<ul>
 					<?php
-						if (!$_SESSION['af_id'] && !$_SESSION['af_ip_client'])
+						if (!$_SESSION['af_id'] && !$_SESSION['af_ip_client']) {
 							if(strcmp($lang, "fr") == 0) {
-								echo "<li><a href='index.php?p=register&lang=$lang'><img src='img/icon/famfamfam/user_add.png' />Inscription</a></li>";
-								echo "<li><a href='login.php?lang=$lang'><img src='img/icon/famfamfam/page_edit.png' />Se connecter</a></li>";
+								echo "<li><a href='steam_redirect.php?lang=$lang'><img src='img/icon/famfamfam/page_edit.png' />Se connecter</a></li>";
 							}
 							else {
-								echo "<li><a href='index.php?p=register&lang=$lang'><img src='img/icon/famfamfam/user_add.png' />Registration</a></li>";
-								echo "<li><a href='login.php?lang=$lang'><img src='img/icon/famfamfam/page_edit.png' />Sign In</a></li>";
+								echo "<li><a href='steam_redirect.php?lang=$lang'><img src='img/icon/famfamfam/page_edit.png' />Sign In</a></li>";
 							}
-		
-						else
-						{
+						}
+						else {
 							if (PAYPAL_PAIEMENT OR ALLOPASS_PAIEMENT OR STARPASS_PAIEMENT)
 							{
 								echo "<li><a href='index.php?p=token&lang=$lang'><img src='img/starpass.png?v=1.1' />Créditation Tokens </a></li>";

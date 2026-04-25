@@ -37,7 +37,10 @@ class SteamOpenID {
      * Get the realm (domain)
      */
     private function getRealm() {
-        return (!empty($_SERVER['HTTPS']) ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        // Extract the base URL from return_url to ensure consistency with OpenID
+        // realm must be a parent of return_to URL
+        $parsed = parse_url($this->return_url);
+        return $parsed['scheme'] . '://' . $parsed['host'];
     }
     
     /**
