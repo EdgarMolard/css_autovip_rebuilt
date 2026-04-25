@@ -1,0 +1,21 @@
+/* ---------- IE FIX ---------- */
+#content .box-content .table table .checkbox div {
+	padding: 9px 20px;
+}
+
+#content .box-content .pagination a {
+	padding: 4px 8px;
+}
+
+#content .box-content .form .submit {
+	padding: 0px 10px;
+}
+
+#content .box-content .actions .apply {
+	font-size: 10px;
+	padding: 2px 6px;
+}
+
+#login .checkbox {
+	margin: 9px 10px;
+}
