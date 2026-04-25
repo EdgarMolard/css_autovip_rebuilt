@@ -11,7 +11,7 @@
 		$lang=$_GET['lang'];
 	}
 	else {
-		$lang = substr($HTTP_SERVER_VARS['HTTP_ACCEPT_LANGUAGE'],0,2);
+		$lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'fr', 0, 2);
 		if (empty($_GET['lang'])){
 			$lang='fr';
 		}

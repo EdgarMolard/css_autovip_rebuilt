@@ -1,205 +1,169 @@
 <?php
-	session_start();
-	
-	ini_set('display_errors', 1); 
-	error_reporting(E_ERROR);
-	
-	define("CHECK_IN", "1");
-	
-	include_once("configuration.php");
-	include_once("fonctions.php");
-	include_once("steam_openid.php");
+/**
+ * Callback Steam OpenID - Utilise xpaw/steam-openid
+ * Reçoit la réponse de Steam, valide l'authentification
+ */
 
-	if (!empty($_GET['lang'])){
-		$lang=$_GET['lang'];
-	}
-	else {
-		$lang = substr($HTTP_SERVER_VARS['HTTP_ACCEPT_LANGUAGE'],0,2);
-		if (empty($lang) || empty($_GET['lang'])){
-			$lang='fr';
-		}
-	}
-	
-	// Vérifier si l'utilisateur est déjà connecté
-	if ($_SESSION['af_id'] && $_SESSION['af_ip_client'])
-		header('Location: index.php?lang=' . $lang);
-	
-	// Initialiser Steam OpenID
-	$steam_openid = new SteamOpenID(URL_SITE . '/steam_callback.php?lang=' . $lang);
-	
-	// Vérifier si c'est une réponse de Steam
-	if (isset($_GET['openid_ns'])) {
-		
-		// Valider la réponse
-		if ($steam_openid->validate()) {
-			
-			// Récupérer le Steam ID
-			$steam_id_64 = str_replace('https://steamcommunity.com/openid/id/', '', $_GET['openid_identity']);
-			$steam_id = $steam_openid->getSteamID();
-			
-			if ($steam_id && is_numeric($steam_id_64)) {
-				
-				// Vérifier si l'utilisateur existe
-				$result = mysqli_query($conn, "
-					SELECT *
-					FROM `".SQL_PREFIX."_users`
-					WHERE steam_id='".$steam_id."'
-					LIMIT 0,1
-				");
-				
-				if (mysqli_num_rows($result) == 1) {
-					// Utilisateur existe, le connecter
-					$resultat = mysqli_fetch_array($result);
+session_start();
 
-					$_SESSION['af_id'] = $resultat['id'];
-					$_SESSION['af_steam_id'] = $resultat['steam_id'];
-					$_SESSION['af_pseudo'] = $resultat['username'];
-					$_SESSION['af_token'] = GetInfo($resultat['id'], 'token');
-					$_SESSION['af_date_register'] = $resultat['date_register'];
-					$_SESSION['af_ip_register'] = $resultat['ip_register'];
-					$_SESSION['af_lastseen'] = $resultat['lastseen'];
-					$_SESSION['af_lastseen_ip'] = $resultat['lastseen_ip'];
-					$_SESSION['af_ip_client'] = $_SERVER['REMOTE_ADDR'];
-					$_SESSION['af_admin_level'] = $resultat['admin_level'];
-					
-					// Mettre à jour les données de connexion
-					$requete_sql = "UPDATE `".SQL_PREFIX."_users` SET `lastseen` = '".time()."', `lastseen_ip` = '".$_SERVER['REMOTE_ADDR']."' WHERE `id` =".$resultat['id'].";";
-					mysqli_query($conn, $requete_sql);
-					
-					// Vérifier si c'est le compte root
-					if (ROOT_SITE == $resultat['steam_id'])
-						$_SESSION['af_admin_level'] = 10;
-					
-					// Redirection
-					header('Location: index.php?p=compte&lang=' . $lang);
-					exit;
-					
-				} else {
-					// Nouvel utilisateur, créer le compte
-					
-					// Récupérer les infos de Steam
-					$steam_info = $steam_openid->getSteamInfo($steam_id_64);
-					
-					// Générer un pseudo depuis le nom Steam
-					$pseudo = isset($steam_info['personaname']) ? $steam_info['personaname'] : 'SteamUser';
-					$pseudo = preg_replace("/[^A-Za-z0-9 ]/", "", $pseudo);
-					$pseudo = preg_replace("/  /", " ", $pseudo);
-					$pseudo = preg_replace("/  /", " ", $pseudo);
-					
-					// S'assurer que le pseudo n'est pas vide et n'existe pas
-					if (empty($pseudo)) {
-						$pseudo = 'SteamUser_' . substr($steam_id_64, -5);
-					}
-					
-					// Vérifier que le pseudo n'existe pas
-					$counter = 1;
-					$original_pseudo = $pseudo;
-					while (true) {
-						$check = mysqli_query($conn, "SELECT id FROM `".SQL_PREFIX."_users` WHERE `username`='".$pseudo."' LIMIT 1");
-						if (mysqli_num_rows($check) == 0) {
-							break;
-						}
-						$pseudo = $original_pseudo . "_" . $counter;
-						$counter++;
-					}
-					
-					// Récupérer l'email depuis Steam (si disponible)
-					$adresse_email = isset($steam_info['profileurl']) ? 'steam_' . $steam_id_64 . '@steam.local' : 'steam_' . $steam_id_64 . '@steam.local';
-					
-					// Générer un mot de passe aléatoire
-					$mot_de_passe = bin2hex(random_bytes(16));
-					
-					// Insérer le nouvel utilisateur
-					$steam_id_normalized = str_replace("STEAM_0", "STEAM_1", $steam_id);
-					$requete_sql = "
-						INSERT INTO `".SQL_PREFIX."_users` 
-						(`id`, `username`, `mail`, `password`, `date_register`, `ip_register`, `lastseen`, `lastseen_ip`, `token`, `mini_token`, `is_suspended`, `admin_level`, `steam_id`, `suspend_reason`, `suspend_admin`, `suspend_time`, `recovery_date`, `recovery_code`)
-						VALUES (NULL , '".mysqli_real_escape_string($conn, $pseudo)."', '".mysqli_real_escape_string($conn, $adresse_email)."', '".md5($mot_de_passe)."', '".time()."', '".$_SERVER["REMOTE_ADDR"]."', '".time()."', '".$_SERVER["REMOTE_ADDR"]."', '0', '0', '0', '0', '".mysqli_real_escape_string($conn, $steam_id_normalized)."', '', '', '0', '0', '');
-					";
-					
-					if (mysqli_query($conn, $requete_sql)) {
-						
-						// Récupérer l'ID de l'utilisateur nouvellement créé
-						$result = mysqli_query($conn, "SELECT id FROM `".SQL_PREFIX."_users` WHERE `steam_id`='".$steam_id_normalized."' LIMIT 1");
-						$new_user = mysqli_fetch_array($result);
-						$user_id = $new_user['id'];
-						
-						// Insérer dans les logs
-						mysqli_query($conn, "
-							INSERT INTO `".SQL_PREFIX."_logs` (`id` ,`timestamp` ,`action` ,`membre` ,`ip`)
-							VALUES (NULL , '".time()."', 'Inscription', '".$user_id."', '".$_SERVER['REMOTE_ADDR']."');
-						");
-						
-						// Envoyer un mail de bienvenue
-						if (MAIL_INSCRIPTION) {
-							$mail_content = MAIL_INSCRIPTION_CONTENT;
-							$mail_content = str_replace("{PSEUDO}", $pseudo, $mail_content);
-							$mail_content = str_replace("{SITE_URL}", URL_SITE, $mail_content);
-							$mail_content = str_replace("{IDENTIFIANT}", $pseudo, $mail_content);
-							$mail_content = str_replace("{MOT_DE_PASSE}", "Connecté via Steam", $mail_content);
-							$mail_content = str_replace("{STEAM_ID}", $steam_id_normalized, $mail_content);
-							$mail_content = str_replace("{FORUM_URL}", URL_FORUM, $mail_content);
-							$mail_content = str_replace("{SOURCEBANS_URL}", URL_SOURCEBANS, $mail_content);
-							$mail_content = str_replace("{GROUPE_STEAM}", GROUPE_STEAM, $mail_content);
-							$mail_content = str_replace("{NOM_TEAM}", NOM_TEAM, $mail_content);
-							$mail_content = str_replace("{CONTACT_RESPONSABLE}", MAIL_CONTACT, $mail_content);
-							
-							$headers = "MIME-Version: 1.0\r\n";
-							$headers .= "Content-type: text/html; charset=UTF-8\r\n";
-							$headers .= "From: " . MAIL_AUTEUR . " <" . MAIL_REPLY . ">\r\n";
-							
-							mail($adresse_email, MAIL_INSCRIPTION_TITLE, $mail_content, $headers);
-						}
-						
-						// Connecter l'utilisateur
-						$_SESSION['af_id'] = $user_id;
-						$_SESSION['af_steam_id'] = $steam_id_normalized;
-						$_SESSION['af_pseudo'] = $pseudo;
-						$_SESSION['af_token'] = 0;
-						$_SESSION['af_date_register'] = time();
-						$_SESSION['af_ip_register'] = $_SERVER["REMOTE_ADDR"];
-						$_SESSION['af_lastseen'] = time();
-						$_SESSION['af_lastseen_ip'] = $_SERVER["REMOTE_ADDR"];
-						$_SESSION['af_ip_client'] = $_SERVER['REMOTE_ADDR'];
-						$_SESSION['af_admin_level'] = 0;
-						
-						// Vérifier si c'est le compte root
-						if (ROOT_SITE == $steam_id_normalized)
-							$_SESSION['af_admin_level'] = 10;
-						
-						// Redirection vers la page d'accueil
-						header('Location: index.php?p=compte&lang=' . $lang);
-						exit;
-						
-					} else {
-						// Erreur lors de l'insertion
-						if($lang == 'fr') {
-							$error_msg = "Une erreur s'est produite lors de la création de votre compte.";
-						} else {
-							$error_msg = "An error occurred while creating your account.";
-						}
-					}
-				}
-			}
-		}
-		
-		// Erreur de validation
-		if($lang == 'fr') {
-			$error_msg = "Erreur lors de la validation avec Steam.";
-		} else {
-			$error_msg = "Error validating with Steam.";
-		}
-	}
-	
-	// Redirection vers login avec erreur
-	if (isset($error_msg)) {
-		header('Location: login.php?error=1&lang=' . $lang);
-		exit;
-	}
-	
-	// Redirection par défaut vers login
-	header('Location: login.php?lang=' . $lang);
-	exit;
-	
-	mysqli_close($conn);
-?>
+define("CHECK_IN", "1");
+
+try {
+    include_once("configuration.php");
+    include_once("fonctions.php");
+    include_once("steam_openid.php");
+} catch (Exception $e) {
+    http_response_code(500);
+    die("Configuration error: " . $e->getMessage());
+}
+
+// Logs
+function log_steam_error($message, $context = []) {
+    $log_message = date('Y-m-d H:i:s') . " - " . $message;
+    if (!empty($context)) {
+        $log_message .= " | Context: " . json_encode($context);
+    }
+    $log_message .= "\n";
+    
+    $log_files = [
+        dirname(__FILE__) . '/logs/steam_errors.log',
+        dirname(__DIR__) . '/logs/steam_errors.log'
+    ];
+    
+    foreach ($log_files as $log_file) {
+        if (is_writable(dirname($log_file))) {
+            @file_put_contents($log_file, $log_message, FILE_APPEND);
+            break;
+        }
+    }
+}
+
+/**
+ * Convertit Steam64 en Steam32 (format STEAM_1:Y:Z)
+ */
+function convertSteamID64to32($steam64) {
+    $steam64 = (string)$steam64;
+    
+    if (function_exists('bcmod')) {
+        $z = (int)bcmod($steam64, 2);
+        $y = (int)bcdiv(bcsub($steam64, $z, 0), 2, 0);
+    } else {
+        $z = $steam64 % 2;
+        $y = intdiv($steam64 - $z, 2);
+    }
+    
+    return "STEAM_1:$z:$y";
+}
+
+try {
+    // Vérifier que nous avons une réponse OpenID
+    if (!isset($_GET['openid_ns'])) {
+        throw new Exception('No OpenID response from Steam');
+    }
+    
+    // Créer instance SteamOpenID et valider
+    $steam_openid = new SteamOpenID(URL_SITE . '/steam_callback.php?lang=' . ($_GET['lang'] ?? 'fr'));
+    
+    // Valider la réponse - retourne le Steam64 ID ou false
+    $steam64 = $steam_openid->validate();
+    if (!$steam64) {
+        $reason = $steam_openid->getLastError();
+        throw new Exception('Steam validation failed' . (!empty($reason) ? ': ' . $reason : ''));
+    }
+    
+    // Convertir Steam64 en Steam32 pour la base de données
+    $steam_id = convertSteamID64to32($steam64);
+    if (!$steam_id) {
+        throw new Exception('Could not convert Steam ID');
+    }
+    
+    // Variables par défaut
+    $username = 'Steam_' . substr($steam_id, -8);
+    $email = 'steam_' . time() . '@steam.local';
+
+    // Connexion DB: le projet utilise global $conn (pas $con)
+    $db = $GLOBALS['conn'] ?? null;
+    if (!($db instanceof mysqli)) {
+        throw new Exception('Database connection not initialized (expected $conn).');
+    }
+    
+    // Récupérer info utilisateur depuis API Steam (optionnel)
+    $steam_info = $steam_openid->getSteamInfo($steam_id);
+    if ($steam_info) {
+        if (isset($steam_info['personaname'])) {
+            $username = $steam_info['personaname'];
+        }
+        if (isset($steam_info['profileurl'])) {
+            $email = $steam_info['profileurl'];
+        }
+    }
+    
+    // Vérifier ou créer l'utilisateur en base de données
+    $query = "SELECT * FROM " . SQL_PREFIX . "_users WHERE steam_id = '" . mysqli_real_escape_string($db, $steam_id) . "'";
+    $result = mysqli_query($db, $query);
+    
+    if ($result && mysqli_num_rows($result) > 0) {
+        // Utilisateur existant - mettre à jour
+        $user = mysqli_fetch_assoc($result);
+        $update = "UPDATE " . SQL_PREFIX . "_users SET 
+                   lastseen = NOW(),
+                   lastseen_ip = '" . mysqli_real_escape_string($db, $_SERVER['REMOTE_ADDR']) . "'
+                   WHERE steam_id = '" . mysqli_real_escape_string($db, $steam_id) . "'";
+        mysqli_query($db, $update);
+        
+        $user_id = $user['id'];
+        $username = $user['username'] ?? $username;
+    } else {
+        // Nouvel utilisateur - créer
+        $insert = "INSERT INTO " . SQL_PREFIX . "_users 
+                  (steam_id, username, mail, date_register, ip_register, lastseen, lastseen_ip)
+                  VALUES 
+                  ('" . mysqli_real_escape_string($db, $steam_id) . "', 
+                   '" . mysqli_real_escape_string($db, $username) . "', 
+                   '" . mysqli_real_escape_string($db, $email) . "',
+                   NOW(), 
+                   '" . mysqli_real_escape_string($db, $_SERVER['REMOTE_ADDR']) . "', 
+                   NOW(), 
+                   '" . mysqli_real_escape_string($db, $_SERVER['REMOTE_ADDR']) . "')";
+        
+        if (!mysqli_query($db, $insert)) {
+            throw new Exception('Database insert failed: ' . mysqli_error($db));
+        }
+        
+        $user_id = mysqli_insert_id($db);
+    }
+    
+    // Définir la session
+    $_SESSION['af_id'] = $user_id;
+    $_SESSION['af_steam_id'] = $steam_id;
+    $_SESSION['af_pseudo'] = $username;
+    $_SESSION['af_token'] = bin2hex(random_bytes(16));
+    $_SESSION['af_date_register'] = date('Y-m-d H:i:s');
+    $_SESSION['af_ip_register'] = $_SERVER['REMOTE_ADDR'];
+    $_SESSION['af_lastseen'] = date('Y-m-d H:i:s');
+    $_SESSION['af_lastseen_ip'] = $_SERVER['REMOTE_ADDR'];
+    $_SESSION['af_ip_client'] = $_SERVER['REMOTE_ADDR'];
+    $_SESSION['af_admin_level'] = 0;
+    
+    // Log succès
+    log_steam_error('✓ Authentification réussie', [
+        'steam_id' => $steam_id,
+        'user_id' => $user_id,
+        'ip' => $_SERVER['REMOTE_ADDR']
+    ]);
+    
+    // Redirection
+    header('Location: index.php?p=compte');
+    exit;
+    
+} catch (Exception $e) {
+    // Log erreur
+    log_steam_error('✗ Erreur authentification: ' . $e->getMessage(), [
+        'ip' => $_SERVER['REMOTE_ADDR'],
+        'get_data' => $_GET
+    ]);
+    
+    // Redirection vers erreur
+    header('Location: login.php?error=1');
+    exit;
+}

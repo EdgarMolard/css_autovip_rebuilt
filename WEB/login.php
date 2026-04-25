@@ -17,7 +17,7 @@
 		$lang=$_GET['lang'];
 	}
 	else {
-		$lang = substr($HTTP_SERVER_VARS['HTTP_ACCEPT_LANGUAGE'],0,2);
+		$lang = substr($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'fr', 0, 2);
 		if (empty($_GET['lang'])){
 			$lang='fr';
 		}
@@ -56,17 +56,22 @@
 			// Afficher les messages d'erreur
 			if (isset($_GET['error']))
 			{
+				$error_msg = isset($_SESSION['steam_error']) ? $_SESSION['steam_error'] : 'An error occurred during Steam login';
+				
 				if($lang == 'fr') {
 					echo '
 						<div class="notification error">
-							<div class="messages">Une erreur s\'est produite lors de la connexion Steam <div class="close"><img src="img/icon/close.png" alt="close" /></div></div>
+							<div class="messages">' . htmlspecialchars($error_msg) . ' <div class="close"><img src="img/icon/close.png" alt="close" /></div></div>
 						</div><!-- end div .notification error -->';
 				} else {
 					echo '
 						<div class="notification error">
-							<div class="messages">An error occurred during Steam login <div class="close"><img src="img/icon/close.png" alt="close" /></div></div>
+							<div class="messages">' . htmlspecialchars($error_msg) . ' <div class="close"><img src="img/icon/close.png" alt="close" /></div></div>
 						</div><!-- end div .notification error -->';
 				}
+				
+				// Effacer le message d'erreur après l'affichage
+				unset($_SESSION['steam_error']);
 			}
 			
 			// Afficher le bouton de connexion Steam

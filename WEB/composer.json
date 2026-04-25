@@ -1,0 +1,13 @@
+{
+    "name": "autovip/steam-auth",
+    "description": "Steam OpenID Auth",
+    "authors": [
+        {
+            "name": "Edgar.M",
+            "email": "edgar.mlrd@gmail.com"
+        }
+    ],
+    "require": {
+        "xpaw/steam-openid": "^4.0"
+    }
+}

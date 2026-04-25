@@ -260,27 +260,94 @@ Les niveaux d'admin vont de 1 (Admin) à 5 (Vice-Président), plus ROOT pour l'a
    - Placez-les dans le dossier `addons/sourcemod/plugins/` de vos serveurs
    - Configurez les droits dans le fichier de config de SourceMod
 
-## 🔧 Dépannage
+## 🔧 Dépannage & Debug Steam
 
-### "Erreur lors de la validation avec Steam"
-- Vérifiez que `URL_SITE` correspond à votre URL réelle (HTTP vs HTTPS)
-- Assurez-vous que le serveur peut accéder à `https://steamcommunity.com`
-- Vérifiez que PHP a `file_get_contents` ou `cURL` activés
+### 🆕 Outils de Debugging (NOUVEAU)
 
-### Utilisateurs ne peuvent pas se connecter
-- Vérifiez que la clé API Steam est correctement configurée
-- Consultez les logs d'erreur PHP (`error_log`)
-- Vérifiez que la table `af_users` existe
+J'ai ajouté un système complet de logging et debugging pour l'authentification Steam:
 
-### Les comptes ne sont pas créés
-- Vérifiez les permissions de la base de données
+#### Page de Debug Steam (Localhost uniquement)
+**URL:** `http://localhost/debug_steam.php`
+
+Cette page affiche:
+- ✓ État de la configuration (API Key, Base de données)
+- 📋 Logs Steam en temps réel (50 dernières entrées)
+- ⚠️ Logs d'erreurs PHP
+- 📝 Dernières inscriptions
+- 🧪 Test de l'API Steam (vérifier qu'une Steam64 ID est valide)
+
+**Protection:** Accessible uniquement depuis localhost (127.0.0.1)
+
+#### Fichier de logs Steam
+**Chemin:** `WEB/logs/steam_errors.log`
+
+Format:
+```
+[2026-04-25 14:23:45] IP: 192.168.1.100 - Validation successful - Steam64: 76561198..., Steam32: STEAM_1:0:...
+[2026-04-25 14:23:48] IP: 192.168.1.100 - Steam validation failed - GET params: {...}
+```
+
+### ❌ Erreurs courantes et solutions
+
+#### "Erreur lors de la validation avec Steam"
+**Causes possibles:**
+1. `URL_SITE` dans `configuration.php` ne correspond pas au domaine exact (HTTP vs HTTPS)
+2. Le serveur ne peut pas accéder à `https://steamcommunity.com` (pare-feu/proxy)
+3. PHP n'a pas `file_get_contents` activé
+
+**Solutions:**
+- Vérifiez `URL_SITE` dans `configuration.php` (ex: `https://vip.monsite.fr`, pas de slash final)
+- Testez la connectivité: `curl -I https://steamcommunity.com`
+- Consultez `/WEB/logs/steam_errors.log` pour plus de détails
+- Accédez à `http://localhost/debug_steam.php` pour voir les logs détaillés
+
+#### "Impossible de récupérer vos informations Steam"
+**Causes:**
+1. API Key Steam invalide ou non configurée
+2. Profil Steam du joueur est privé
+3. Problème de connectivité avec l'API Steam
+
+**Solutions:**
+- Vérifiez `STEAM_API_KEY` dans `configuration.php`
+- Le profil Steam doit être public (pas privé)
+- Testez l'API via la page debug: cliquez sur "🧪 Test Steam API"
+
+#### "La validation avec Steam a échoué"
+**Causes:**
+1. Paramètres OpenID invalides
+2. Réponse Steam corrompue/incomplète
+3. Session expire
+
+**Solutions:**
+- Consultez les logs: `/WEB/logs/steam_errors.log`
+- Assurez-vous que les sessions PHP sont activées
+- Essayez à nouveau - peut être un timeout transitoire
+
+#### "Erreur lors de la création de votre compte"
+**Causes:**
+1. Erreur base de données (permissions manquantes)
+2. Pseudo en doublon (très rare)
+
+**Solutions:**
+- Vérifiez les permissions MySQL: `GRANT ALL ON Autovip.* TO 'Autovip'@'localhost'`
+- Consultez les logs détaillés: `/WEB/logs/steam_errors.log`
 - Vérifiez les logs MySQL
-- Vérifiez la configuration des mails
 
-### Les mails ne sont pas envoyés
-- Vérifiez que `MAIL_INSCRIPTION = 1`
+#### Utilisateurs ne peuvent pas se connecter
+- Vérifiez que la clé API Steam est correctement configurée
+- Consultez `/WEB/logs/steam_errors.log` pour le message d'erreur exact
+- Vérifiez que la table `af_users` existe: `mysql -u Autovip -p Autovip -e "SHOW TABLES;"`
+
+#### Les comptes ne sont pas créés
+- Vérifiez les permissions de la base de données
+- Vérifiez les logs MySQL: `tail -f /var/log/mysql/error.log`
+- Vérifiez la configuration des mails et que `MAIL_INSCRIPTION = 1`
+
+#### Les mails ne sont pas envoyés
+- Vérifiez que `MAIL_INSCRIPTION = 1` dans `configuration.php`
 - Vérifiez que `php.ini` a SMTP configuré
-- Consultez les logs PHP/web
+- Consultez les logs PHP pour les erreurs mail
+- Testez avec: `php -r "mail('test@example.com', 'Test', 'Test'); echo 'Sent';"`
 
 ## 📝 Fichiers importants
 
